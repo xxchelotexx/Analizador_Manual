@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Consolidador P2P Multi-Exchange</title>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; padding: 40px; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 650px; }
+        h2 { color: #1e293b; text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 25px; }
+        .file-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; margin-bottom: 12px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; color: #475569; font-size: 14px; }
+        button { width: 100%; padding: 14px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        button:hover { background: #2563eb; }
+        #status { margin-top: 20px; padding: 12px; background: #1e293b; color: #10b981; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap; min-height: 60px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🚀 Consolidador P2P v4.2</h2>
+    
+    <div class="file-box">
+        <label>Archivo MEXC (Excel)</label>
+        <input type="file" id="fileMEXC">
+    </div>
+
+    <div class="file-box">
+        <label>Archivo Bybit (.xls / .xlsx)</label>
+        <input type="file" id="fileBybit">
+    </div>
+
+    <div class="file-box">
+        <label>Archivo Bitget (.csv / .xlsx)</label>
+        <input type="file" id="fileBitget">
+    </div>
+
+    <button onclick="procesar()">Consolidar y Descargar</button>
+    <div id="status">Esperando archivos...</div>
+</div>
+
+<script>
+function buscarCol(row, nombres, index) {
+    const keys = Object.keys(row);
+    for (let n of nombres) {
+        let found = keys.find(k => k.toLowerCase().trim().includes(n.toLowerCase()));
+        if (found) return row[found];
+    }
+    return keys[index] !== undefined ? row[keys[index]] : null;
+}
+
+function parsearFecha(valor) {
+    if (!valor || String(valor).includes("time") || String(valor).includes("UTC")) return null;
+    let d = new Date(valor);
+    if (isNaN(d.getTime())) {
+        if (typeof valor === 'number') d = new Date(Math.round((valor - 25569) * 864e5));
+        else if (typeof valor === 'string') d = new Date(valor.replace(/-/g, '/'));
+    }
+    if (isNaN(d.getTime())) return null;
+    d.setHours(d.getHours() - 4); 
+    return d;
+}
+
+function formatear(d) {
+    if (!d) return null;
+    const p = (n) => String(n).padStart(2, '0');
+    return {
+        f: `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`,
+        h: `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`,
+        raw: d
+    };
+}
+
+async function procesar() {
+    const status = document.getElementById('status');
+    const fMexc = document.getElementById('fileMEXC').files[0];
+    const fBybit = document.getElementById('fileBybit').files[0];
+    const fBitget = document.getElementById('fileBitget').files[0];
+    let consolidado = [];
+
+    status.innerText = "Procesando...";
+
+    try {
+        // --- MEXC ---
+        if (fMexc) {
+            const data = await fMexc.arrayBuffer();
+            const wb = XLSX.read(data, { cellDates: true });
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            rows.forEach(row => {
+                const dt = formatear(parsearFecha(buscarCol(row, ['Create time', 'time'], 5)));
+                if (!dt) return;
+
+                let estadoRaw = String(buscarCol(row, ['state', 'status'], 9) || '').toLowerCase();
+                let estadoFinal = "Unknown";
+                if (estadoRaw.includes('done')) estadoFinal = "Completed";
+                else if (estadoRaw.includes('time out') || estadoRaw.includes('cancel')) estadoFinal = "Cancelled";
+                else estadoFinal = estadoRaw;
+
+                const cant = parseFloat(buscarCol(row, ['quantity'], 10)) || 0;
+
+                consolidado.push({
+                    'Fecha': dt.f, 'Hora': dt.h, 'Plataforma': 'mexc',
+                    'Nro de Orden': String(buscarCol(row, ['order ID'], 2) || ''),
+                    'Tipo': String(buscarCol(row, ['AD type'], 4) || '').toLowerCase().includes('sell') ? 'Venta' : 'Compra',
+                    'Estado': estadoFinal,
+                    'Monto bs': parseFloat(buscarCol(row, ['amount'], 12)) || 0,
+                    'TC': parseFloat(buscarCol(row, ['price'], 11)) || 0,
+                    'Monto USDT': cant, 'fee': 0, 'Monto Real': cant,
+                    'Usuario': String(buscarCol(row, ['taker id'], 14) || ''),
+                    'sortDate': dt.raw
+                });
+            });
+        }
+
+        // --- BYBIT ---
+        if (fBybit) {
+            const data = await fBybit.arrayBuffer();
+            const wb = XLSX.read(data, { cellDates: true });
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            rows.forEach(row => {
+                const dt = formatear(parsearFecha(buscarCol(row, ['Time', 'UTC'], 13)));
+                if (!dt) return;
+                const mUSDT = parseFloat(buscarCol(row, ['Coin Amou'], 7)) || 0;
+                const fee = parseFloat(buscarCol(row, ['Transactio'], 9)) || 0;
+                consolidado.push({
+                    'Fecha': dt.f, 'Hora': dt.h, 'Plataforma': 'bybit',
+                    'Nro de Orden': String(buscarCol(row, ['Order No'], 0) || ''),
+                    'Tipo': String(buscarCol(row, ['Direction'], 2) || '').toUpperCase().includes('BUY') ? 'Compra' : 'Venta',
+                    'Estado': buscarCol(row, ['Status'], 12),
+                    'Monto bs': parseFloat(buscarCol(row, ['Fiat Amou'], 3)) || 0,
+                    'TC': parseFloat(buscarCol(row, ['Unit Price'], 5)) || 0,
+                    'Monto USDT': mUSDT, 'fee': fee, 'Monto Real': mUSDT - fee,
+                    'Usuario': buscarCol(row, ['Counterpar'], 11) || '',
+                    'sortDate': dt.raw
+                });
+            });
+        }
+
+        // --- BITGET ---
+        if (fBitget) {
+            const data = await fBitget.arrayBuffer();
+            const wb = XLSX.read(data, { cellDates: true });
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            rows.forEach(row => {
+                const dt = formatear(parsearFecha(buscarCol(row, ['Time created', 'Time'], 1)));
+                if (!dt) return;
+                const mUSDT = parseFloat(buscarCol(row, ['Quantity'], 7)) || 0;
+                consolidado.push({
+                    'Fecha': dt.f, 'Hora': dt.h, 'Plataforma': 'bitget',
+                    'Nro de Orden': String(buscarCol(row, ['Order number'], 0) || ''),
+                    'Tipo': String(buscarCol(row, ['Order type'], 2) || '').toUpperCase().includes('BUY') ? 'Compra' : 'Venta',
+                    'Estado': buscarCol(row, ['status'], 8),
+                    'Monto bs': parseFloat(buscarCol(row, ['Amount'], 5)) || 0,
+                    'TC': parseFloat(buscarCol(row, ['Price'], 6)) || 0,
+                    'Monto USDT': mUSDT, 'fee': 0, 'Monto Real': mUSDT,
+                    'Usuario': '', 'sortDate': dt.raw
+                });
+            });
+        }
+
+        if (consolidado.length === 0) throw new Error("No hay datos válidos.");
+
+        consolidado.sort((a, b) => a.sortDate - b.sortDate);
+        const final = consolidado.map(({sortDate, ...r}) => r);
+        const ws = XLSX.utils.json_to_sheet(final);
+        const newWb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(newWb, ws, "Consolidado");
+        XLSX.writeFile(newWb, "Consolidado_Global.xlsx");
+        
+        status.innerText = `🎉 ¡Hecho! ${consolidado.length} transacciones procesadas.`;
+
+    } catch (e) {
+        status.innerText = "❌ Error: " + e.message;
+    }
+}
+</script>
+</body>
+</html>
