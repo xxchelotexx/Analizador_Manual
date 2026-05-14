@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Suite - Integrador y Analizador</title>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --secondary: #3b82f6;
+            --bg: #f0f2f5;
+            --text: #1e293b;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; }
+        
+        /* Sistema de Pestañas */
+        .tabs-container { max-width: 1100px; margin: 0 auto; }
+        .tabs-header { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #ddd; }
+        .tab-btn { 
+            padding: 12px 24px; cursor: pointer; border: none; background: none; 
+            font-size: 16px; font-weight: bold; color: #64748b; transition: 0.3s;
+        }
+        .tab-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Estilos Unificados de Contenedores */
+        .main-card { background: white; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        h1, h2 { text-align: center; color: var(--text); }
+
+        /* --- ESTILOS DEL HUB (CÓDIGO 1) --- */
+        .file-box { 
+            background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; 
+            border-radius: 8px; margin-bottom: 12px; transition: all 0.3s ease;
+        }
+        .file-box.disabled { opacity: 0.5; background: #f1f5f9; }
+        .header-box { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #cbd5e1; transition: .4s; border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px;
+            background-color: white; transition: .4s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--secondary); }
+        input:checked + .slider:before { transform: translateX(20px); }
+        .btn-hub { width: 100%; padding: 14px; background: var(--secondary); color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        #status { margin-top: 20px; padding: 12px; background: #1e293b; color: #10b981; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap; min-height: 40px; }
+
+        /* --- ESTILOS DEL ANALIZADOR (CÓDIGO 2) --- */
+        .upload-section { border: 2px dashed #dadce0; padding: 30px; text-align: center; border-radius: 12px; margin-bottom: 30px; background: #f8f9fa; }
+        .custom-file-upload { display: inline-block; padding: 12px 24px; cursor: pointer; background: var(--primary); color: white; border-radius: 8px; font-weight: 600; }
+        .summary-grid { display: flex; flex-direction: column; gap: 20px; margin-bottom: 40px; }
+        .row-totals, .row-profits { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .row-profits { border-top: 2px solid #eee; padding-top: 20px; }
+        .card { background: #fff; border: 1px solid #e0e0e0; padding: 20px; border-radius: 10px; }
+        .card h3 { margin: 0; font-size: 0.75em; text-transform: uppercase; color: #5f6368; }
+        .card p { font-size: 1.5em; font-weight: 700; margin: 10px 0 0; }
+        .card.profit-bs { border-top: 5px solid #34a853; background: #e6f4ea; }
+        .card.profit-real { border-top: 5px solid #188038; background: #e6f4ea; }
+        .card.loss { border-top: 5px solid #d93025; background: #fce8e6; }
+        .table-container { overflow-x: auto; margin-top: 20px; border-radius: 8px; border: 1px solid #e0e0e0; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #f1f3f4; }
+        th { background-color: #f8f9fa; font-size: 0.8em; color: #5f6368; }
+        .badge-venta { color: #1a73e8; font-weight: 600; }
+        .badge-compra { color: #e67c73; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+<div class="tabs-container">
+    <div class="tabs-header">
+        <button class="tab-btn active" onclick="openTab('hub')">🚀 Hub Integrador</button>
+        <button class="tab-btn" onclick="openTab('analizador')">📊 Analizador de Ganancias</button>
+    </div>
+
+    <div id="hub" class="tab-content active">
+        <div class="main-card">
+            <h2>Hub Integrador P2P v1.0</h2>
+            <div class="file-box disabled" id="boxBinance">
+                <div class="header-box">
+                    <label>Binance (.xlsx)</label>
+                    <label class="switch">
+                        <input type="checkbox" onchange="toggleInputUI('Binance', event)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <input type="file" id="fileBinance" disabled>
+            </div>
+
+            <div class="file-box disabled" id="boxMEXC">
+                <div class="header-box">
+                    <label>MEXC (.xlsx)</label>
+                    <label class="switch">
+                        <input type="checkbox" onchange="toggleInputUI('MEXC', event)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <input type="file" id="fileMEXC" disabled>
+            </div>
+
+            <div class="file-box disabled" id="boxBybit">
+                <div class="header-box">
+                    <label>Bybit (.xlsx)</label>
+                    <label class="switch">
+                        <input type="checkbox" onchange="toggleInputUI('Bybit', event)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <input type="file" id="fileBybit" disabled>
+            </div>
+
+            <div class="file-box disabled" id="boxBitget">
+                <div class="header-box">
+                    <label>Bitget (.csv)</label>
+                    <label class="switch">
+                        <input type="checkbox" onchange="toggleInputUI('Bitget', event)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <input type="file" id="fileBitget" disabled>
+            </div>
+
+            <button class="btn-hub" onclick="procesarConsolidacion()">Consolidar y Descargar</button>
+            <div id="status">Esperando archivos...</div>
+        </div>
+    </div>
+
+    <div id="analizador" class="tab-content">
+        <div class="main-card">
+            <h1>Analizador P2P</h1>
+            <div class="upload-section">
+                <label for="file-upload-analizador" class="custom-file-upload">Subir Archivo Consolidado</label>
+                <input id="file-upload-analizador" type="file" accept=".xls,.xlsx" />
+                <p id="file-name-analizador" style="margin-top:15px; color:#5f6368; font-size: 0.9em;">Sube el Excel generado por el Hub</p>
+            </div>
+
+            <div id="results-analizador" style="display:none;">
+                <h2>Resumen de Operaciones</h2>
+                <div class="summary-grid">
+                    <div class="row-totals" id="totals-row"></div>
+                    <div class="row-profits" id="profits-row"></div>
+                </div>
+
+                <h2>Detalle por Plataforma (Completados)</h2>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Plataforma</th>
+                                <th>Tipo</th>
+                                <th>Total Bs</th>
+                                <th>Total USDT</th>
+                            </tr>
+                        </thead>
+                        <tbody id="platform-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/* LÓGICA DE NAVEGACIÓN */
+function openTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    event.currentTarget.classList.add('active');
+}
+
+/* --- LÓGICA DEL HUB (MANTENIDA) --- */
+function toggleInputUI(id, event) {
+    const fileInput = document.getElementById('file' + id);
+    const box = document.getElementById('box' + id);
+    const isChecked = event.target.checked;
+    fileInput.disabled = !isChecked;
+    if (isChecked) box.classList.remove('disabled');
+    else { box.classList.add('disabled'); fileInput.value = ""; }
+}
+
+function buscarCol(row, nombres, index) {
+    const keys = Object.keys(row);
+    for (let n of nombres) {
+        let found = keys.find(k => k.toLowerCase().trim().includes(n.toLowerCase().trim()));
+        if (found) return row[found];
+    }
+    return keys[index] !== undefined ? row[keys[index]] : null;
+}
+
+function parsearFecha(valor) {
+    if (!valor) return null;
+    let d = new Date(valor);
+    if (isNaN(d.getTime()) && typeof valor === 'string') {
+        const regex = /^(\d{2})-(\d{2})-(\d{2})\s(\d{2}):(\d{2}):(\d{2})$/;
+        const match = valor.match(regex);
+        if (match) {
+            const año = parseInt(match[1]) + 2000;
+            const mes = parseInt(match[2]) - 1;
+            const dia = parseInt(match[3]);
+            const hora = parseInt(match[4]);
+            const min = parseInt(match[5]);
+            const seg = parseInt(match[6]);
+            d = new Date(año, mes, dia, hora, min, seg);
+        } else { d = new Date(valor.replace(/-/g, '/')); }
+    }
+    if (isNaN(d.getTime()) && typeof valor === 'number') { d = new Date(Math.round((valor - 25569) * 864e5)); }
+    return isNaN(d.getTime()) ? null : d;
+}
+
+function formatear(d) {
+    if (!d) return null;
+    const p = (n) => String(n).padStart(2, '0');
+    return {
+        f: `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`,
+        h: `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`,
+        raw: d
+    };
+}
+
+async function procesarConsolidacion() {
+    const status = document.getElementById('status');
+    const fBinance = document.getElementById('fileBinance').files[0];
+    const fMexc = document.getElementById('fileMEXC').files[0];
+    const fBybit = document.getElementById('fileBybit').files[0];
+    const fBitget = document.getElementById('fileBitget').files[0];
+    let consolidado = [];
+    status.innerText = "Procesando...";
+
+    try {
+        if (fBinance) {
+            const data = await fBinance.arrayBuffer();
+            const wb = XLSX.read(data, { cellDates: true });
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { range: 9, defval: "" });
+            rows.forEach(row => {
+                const dt = formatear(parsearFecha(buscarCol(row, ['Created', 'Time'], 13)));
+                if (!dt) return;
+                const mUSDT = parseFloat(buscarCol(row, ['Quantity'], 6)) || 0;
+                const mFee = (parseFloat(buscarCol(row, ['Maker Fee'], 8)) || 0) + (parseFloat(buscarCol(row, ['Taker Fee'], 9)) || 0);
+                consolidado.push({
+                    'Fecha': dt.f, 'Hora': dt.h, 'Plataforma': 'binance',
+                    'Nro de Orden': String(buscarCol(row, ['Order Number'], 0)),
+                    'Tipo': String(buscarCol(row, ['Order Type'], 1)).toLowerCase().includes('sell') ? 'Venta' : 'Compra',
+                    'Estado': buscarCol(row, ['Status'], 10),
+                    'Monto bs': parseFloat(buscarCol(row, ['Total Price'], 4)) || 0,
+                    'TC': (() => {
+                        const keys = Object.keys(row);
+                        const exactKey = keys.find(k => k.trim().toLowerCase() === 'price');
+                        return exactKey ? parseFloat(row[exactKey]) || 0 : 0;
+                    })(),
+                    'Monto USDT': mUSDT, 'fee': mFee, 'Monto Real': Number((mUSDT - mFee).toFixed(2)),
+                    'Usuario': String(buscarCol(row, ['Counterparty'], 10)), 'sortDate': dt.raw
+                });
+            });
+        }
+        if (fMexc) {
+            const data = await fMexc.arrayBuffer();
+            const wb = XLSX.read(data, { cellDates: true });
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            rows.forEach(row => {
+                const dt = formatear(parsearFecha(buscarCol(row, ['Create time', 'time'], 5)));
+                if (!dt) return;
+                const cant = parseFloat(buscarCol(row, ['quantity'], 10)) || 0;
+                consolidado.push({
+                    'Fecha': dt.f, 'Hora': dt.h, 'Plataforma': 'mexc',
+                    'Nro de Orden': String(buscarCol(row, ['order ID'], 2)),
+                    'Tipo': String(buscarCol(row, ['AD type'], 4)).toLowerCase().includes('sell') ? 'Venta' : 'Compra',
+                    'Estado': (() => {
+                        const s = String(buscarCol(row, ['state'], 9)).toLowerCase().trim();
+                        if (s === 'time out') return 'Cancelled';
+                        if (s === 'done') return 'Completed';
+                        return String(buscarCol(row, ['state'], 9));
+                    })(),
+                    'Monto bs': parseFloat(buscarCol(row, ['amount'], 12)) || 0,
+                    'TC': parseFloat(buscarCol(row, ['price'], 11)) || 0,
+                    'Monto USDT': cant, 'fee': 0, 'Monto Real': Number(cant.toFixed(2)),
+                    'Usuario': String(buscarCol(row, ['taker id'], 14)), 'sortDate': dt.raw
+                });
+            });
+        }
+        if (fBybit) {
+            const data = await fBybit.arrayBuffer();
+            const wb = XLSX.read(data, { cellDates: true });
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            rows.forEach(row => {
+                const dt = formatear(parsearFecha(buscarCol(row, ['Time', 'UTC'], 13)));
+                if (!dt) return;
+                const mUSDT = parseFloat(buscarCol(row, ['Coin Amou'], 7)) || 0;
+                const fee = parseFloat(buscarCol(row, ['Transactio'], 9)) || 0;
+                consolidado.push({
+                    'Fecha': dt.f, 'Hora': dt.h, 'Plataforma': 'bybit',
+                    'Nro de Orden': String(buscarCol(row, ['Order No'], 0)),
+                    'Tipo': String(buscarCol(row, ['Direction'], 2)).toUpperCase().includes('BUY') ? 'Compra' : 'Venta',
+                    'Estado': buscarCol(row, ['Status'], 12),
+                    'Monto bs': parseFloat(buscarCol(row, ['Fiat Amou'], 3)) || 0,
+                    'TC': parseFloat(buscarCol(row, ['Unit Price'], 5)) || 0,
+                    'Monto USDT': mUSDT, 'fee': fee, 'Monto Real': Number((mUSDT - fee).toFixed(2)),
+                    'Usuario': buscarCol(row, ['Counterpar'], 11), 'sortDate': dt.raw
+                });
+            });
+        }
+        if (fBitget) {
+            const data = await fBitget.arrayBuffer();
+            const wb = XLSX.read(data, { cellDates: true });
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+            rows.forEach(row => {
+                const dt = formatear(parsearFecha(buscarCol(row, ['Time created', 'Time'], 1)));
+                if (!dt) return;
+                const mUSDT = parseFloat(buscarCol(row, ['Quantity'], 7)) || 0;
+                consolidado.push({
+                    'Fecha': dt.f, 'Hora': dt.h, 'Plataforma': 'bitget',
+                    'Nro de Orden': String(buscarCol(row, ['Order number'], 0)),
+                    'Tipo': String(buscarCol(row, ['Order type'], 2)).toUpperCase().includes('BUY') ? 'Compra' : 'Venta',
+                    'Estado': buscarCol(row, ['status'], 8),
+                    'Monto bs': parseFloat(buscarCol(row, ['Amount'], 5)) || 0,
+                    'TC': parseFloat(buscarCol(row, ['Price'], 6)) || 0,
+                    'Monto USDT': mUSDT, 'fee': 0, 'Monto Real': Number(mUSDT.toFixed(2)),
+                    'Usuario': '', 'sortDate': dt.raw
+                });
+            });
+        }
+
+        if (consolidado.length === 0) throw new Error("No hay datos válidos.");
+        consolidado.sort((a, b) => a.sortDate - b.sortDate);
+        const datosLimpios = consolidado.map(({sortDate, ...r}) => r);
+        const ws = XLSX.utils.json_to_sheet(datosLimpios);
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+            const cellAddress = XLSX.utils.encode_cell({r: R, c: 10});
+            if (ws[cellAddress]) { ws[cellAddress].t = 'n'; ws[cellAddress].z = '#,##0.00'; }
+        }
+        const newWb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(newWb, ws, "Consolidado");
+        XLSX.writeFile(newWb, "Consolidado_Global.xlsx");
+        status.innerText = `🎉 ¡Hecho! ${consolidado.length} transacciones procesadas.`;
+    } catch (e) { status.innerText = "❌ Error: " + e.message; }
+}
+
+/* --- LÓGICA DEL ANALIZADOR (MANTENIDA) --- */
+document.getElementById('file-upload-analizador').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('file-name-analizador').textContent = "Archivo cargado: " + file.name;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        processAnalysis(json);
+    };
+    reader.readAsArrayBuffer(file);
+});
+
+function processAnalysis(data) {
+    let stats = {};
+    let totals = { vBS: 0, cBS: 0, vReal: 0, cReal: 0 };
+
+    data.forEach(row => {
+        const rowClean = {};
+        Object.keys(row).forEach(k => rowClean[k.trim()] = row[k]);
+        const plat = rowClean['Plataforma'];
+        const tipo = rowClean['Tipo'];
+        const estado = rowClean['Estado'];
+        const montoBS = parseFloat(rowClean['Monto bs']) || 0;
+        const montoReal = parseFloat(rowClean['Monto Real']) || 0;
+
+        if (estado === 'Completed' && plat) {
+            if (!stats[plat]) stats[plat] = { Venta: {bs:0, real:0}, Compra: {bs:0, real:0} };
+            if (tipo === 'Venta') {
+                stats[plat].Venta.bs += montoBS; stats[plat].Venta.real += montoReal;
+                totals.vBS += montoBS; totals.vReal += montoReal;
+            } else if (tipo === 'Compra') {
+                stats[plat].Compra.bs += montoBS; stats[plat].Compra.real += montoReal;
+                totals.cBS += montoBS; totals.cReal += montoReal;
+            }
+        }
+    });
+
+    const gananciaBS = totals.vBS - totals.cBS;
+    const gananciaReal = totals.cReal - totals.vReal;
+
+    document.getElementById('totals-row').innerHTML = `
+        <div class="card"><h3>Total Ventas (BOB)</h3><p>${totals.vBS.toLocaleString()} BS</p></div>
+        <div class="card"><h3>Total Ventas (USDT)</h3><p>${totals.vReal.toFixed(2)}</p></div>
+        <div class="card"><h3>Total Compras (BOB)</h3><p>${totals.cBS.toLocaleString()} BS</p></div>
+        <div class="card"><h3>Total Compras (USDT)</h3><p>${totals.cReal.toFixed(2)}</p></div>
+    `;
+
+    document.getElementById('profits-row').innerHTML = `
+        <div class="card ${gananciaBS >= 0 ? 'profit-bs' : 'loss'}"><h3>Ganancia BOB</h3><p>${gananciaBS.toLocaleString()} BS</p></div>
+        <div class="card ${gananciaReal >= 0 ? 'profit-real' : 'loss'}"><h3>Ganancia USDT</h3><p>${gananciaReal.toFixed(2)}</p></div>
+    `;
+
+    const tbody = document.getElementById('platform-body');
+    tbody.innerHTML = '';
+    Object.keys(stats).sort().forEach(p => {
+        tbody.innerHTML += `<tr><td><strong>${p.toUpperCase()}</strong></td><td class="badge-venta">Venta</td><td>${stats[p].Venta.bs.toLocaleString()}</td><td>${stats[p].Venta.real.toFixed(2)}</td></tr>`;
+        tbody.innerHTML += `<tr><td><strong>${p.toUpperCase()}</strong></td><td class="badge-compra">Compra</td><td>${stats[p].Compra.bs.toLocaleString()}</td><td>${stats[p].Compra.real.toFixed(2)}</td></tr>`;
+    });
+    document.getElementById('results-analizador').style.display = 'block';
+}
+</script>
+</body>
+</html>
