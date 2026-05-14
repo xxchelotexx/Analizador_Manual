@@ -432,8 +432,8 @@ function processAnalysis(data) {
         <div class="card"><h3>Compras (USDT)</h3><p>${totals.cReal.toFixed(2)}</p></div>
     `;
     document.getElementById('profits-row').innerHTML = `
-        <div class="card ${gananciaBS >= 0 ? 'profit-bs' : 'loss'}"><h3>G. BOB</h3><p>${gananciaBS.toLocaleString()}</p></div>
-        <div class="card ${gananciaReal >= 0 ? 'profit-real' : 'loss'}"><h3>G. USDT</h3><p>${gananciaReal.toFixed(2)}</p></div>
+        <div class="card ${gananciaBS >= 0 ? 'profit-bs' : 'loss'}"><h3>Ganacias BOB</h3><p>${gananciaBS.toLocaleString()}</p></div>
+        <div class="card ${gananciaReal >= 0 ? 'profit-real' : 'loss'}"><h3>Ganancias USDT</h3><p>${gananciaReal.toFixed(2)}</p></div>
     `;
     const tbody = document.getElementById('platform-body');
     tbody.innerHTML = '';
