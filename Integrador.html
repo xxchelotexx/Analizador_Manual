@@ -8,8 +8,38 @@
         body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; display: flex; justify-content: center; padding: 40px; }
         .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 650px; }
         h2 { color: #1e293b; text-align: center; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; margin-bottom: 25px; }
-        .file-box { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; margin-bottom: 12px; }
-        label { display: block; font-weight: bold; margin-bottom: 8px; color: #475569; font-size: 14px; }
+        
+        /* Estilos para la caja de archivo con Toggle */
+        .file-box { 
+            background: #f8fafc; 
+            border: 1px solid #e2e8f0; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin-bottom: 12px; 
+            transition: all 0.3s ease;
+        }
+        .file-box.disabled { opacity: 0.5; background: #f1f5f9; }
+        
+        .header-box { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        label { font-weight: bold; color: #475569; font-size: 14px; }
+
+        /* Estilo del Switch (Toggle) */
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #cbd5e1; transition: .4s; border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px;
+            background-color: white; transition: .4s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: #3b82f6; }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        input[type="file"] { width: 100%; font-size: 13px; }
+        input[type="file"]:disabled { cursor: not-allowed; }
+
         button { width: 100%; padding: 14px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; margin-top: 10px; }
         button:hover { background: #2563eb; }
         #status { margin-top: 20px; padding: 12px; background: #1e293b; color: #10b981; border-radius: 6px; font-family: monospace; font-size: 12px; white-space: pre-wrap; min-height: 80px; }
@@ -20,24 +50,48 @@
 <div class="container">
     <h2>🚀 Hub Integrador P2P v1.0</h2>
     
-    <div class="file-box">
-        <label>Archivo Binance (.xlsx)</label>
-        <input type="file" id="fileBinance">
+    <div class="file-box disabled" id="boxBinance">
+        <div class="header-box">
+            <label>Binance (.xlsx)</label>
+            <label class="switch">
+                <input type="checkbox" onchange="toggleInput('Binance')">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <input type="file" id="fileBinance" disabled>
     </div>
 
-    <div class="file-box">
-        <label>Archivo MEXC (Excel)</label>
-        <input type="file" id="fileMEXC">
+    <div class="file-box disabled" id="boxMEXC">
+        <div class="header-box">
+            <label>MEXC (.xlsx)</label>
+            <label class="switch">
+                <input type="checkbox" onchange="toggleInput('MEXC')">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <input type="file" id="fileMEXC" disabled>
     </div>
 
-    <div class="file-box">
-        <label>Archivo Bybit (.xls / .xlsx)</label>
-        <input type="file" id="fileBybit">
+    <div class="file-box disabled" id="boxBybit">
+        <div class="header-box">
+            <label>Bybit (.xlsx)</label>
+            <label class="switch">
+                <input type="checkbox" onchange="toggleInput('Bybit')">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <input type="file" id="fileBybit" disabled>
     </div>
 
-    <div class="file-box">
-        <label>Archivo Bitget (.csv / .xlsx)</label>
-        <input type="file" id="fileBitget">
+    <div class="file-box disabled" id="boxBitget">
+        <div class="header-box">
+            <label>Bitget (.csv)</label>
+            <label class="switch">
+                <input type="checkbox" onchange="toggleInput('Bitget')">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <input type="file" id="fileBitget" disabled>
     </div>
 
     <button onclick="procesar()">Consolidar y Descargar</button>
@@ -45,6 +99,23 @@
 </div>
 
 <script>
+// Función para controlar la UI de los toggles
+function toggleInput(id) {
+    const fileInput = document.getElementById('file' + id);
+    const box = document.getElementById('box' + id);
+    const isChecked = event.target.checked;
+
+    fileInput.disabled = !isChecked;
+    if (isChecked) {
+        box.classList.remove('disabled');
+    } else {
+        box.classList.add('disabled');
+        fileInput.value = ""; // Limpiar archivo si se apaga
+    }
+}
+
+// --- TU LÓGICA DE PROCESAMIENTO MANTENIDA EXACTAMENTE IGUAL ---
+
 function buscarCol(row, nombres, index) {
     const keys = Object.keys(row);
     for (let n of nombres) {
@@ -99,7 +170,6 @@ async function procesar() {
     status.innerText = "Procesando...";
 
     try {
-        // --- BINANCE ---
         if (fBinance) {
             const data = await fBinance.arrayBuffer();
             const wb = XLSX.read(data, { cellDates: true });
@@ -109,7 +179,6 @@ async function procesar() {
                 if (!dt) return;
                 const mUSDT = parseFloat(buscarCol(row, ['Quantity'], 6)) || 0;
                 const mFee = (parseFloat(buscarCol(row, ['Maker Fee'], 8)) || 0) + (parseFloat(buscarCol(row, ['Taker Fee'], 9)) || 0);
-                
                 consolidado.push({
                     'Fecha': dt.f, 'Hora': dt.h, 'Plataforma': 'binance',
                     'Nro de Orden': String(buscarCol(row, ['Order Number'], 0)),
@@ -123,13 +192,12 @@ async function procesar() {
                     })(),
                     'Monto USDT': mUSDT, 
                     'fee': mFee, 
-                    'Monto Real': Number((mUSDT - mFee).toFixed(2)), // Forzado como número
+                    'Monto Real': Number((mUSDT - mFee).toFixed(2)),
                     'Usuario': String(buscarCol(row, ['Counterparty'], 10)), 'sortDate': dt.raw
                 });
             });
         }
 
-        // --- MEXC ---
         if (fMexc) {
             const data = await fMexc.arrayBuffer();
             const wb = XLSX.read(data, { cellDates: true });
@@ -156,7 +224,6 @@ async function procesar() {
             });
         }
 
-        // --- BYBIT ---
         if (fBybit) {
             const data = await fBybit.arrayBuffer();
             const wb = XLSX.read(data, { cellDates: true });
@@ -175,13 +242,12 @@ async function procesar() {
                     'TC': parseFloat(buscarCol(row, ['Unit Price'], 5)) || 0,
                     'Monto USDT': mUSDT, 
                     'fee': fee, 
-                    'Monto Real': Number((mUSDT - fee).toFixed(2)), // Forzado como número
+                    'Monto Real': Number((mUSDT - fee).toFixed(2)),
                     'Usuario': buscarCol(row, ['Counterpar'], 11), 'sortDate': dt.raw
                 });
             });
         }
 
-        // --- BITGET ---
         if (fBitget) {
             const data = await fBitget.arrayBuffer();
             const wb = XLSX.read(data, { cellDates: true });
@@ -199,7 +265,7 @@ async function procesar() {
                     'TC': parseFloat(buscarCol(row, ['Price'], 6)) || 0,
                     'Monto USDT': mUSDT, 
                     'fee': 0, 
-                    'Monto Real': Number(mUSDT.toFixed(2)), // Forzado como número
+                    'Monto Real': Number(mUSDT.toFixed(2)),
                     'Usuario': '', 'sortDate': dt.raw
                 });
             });
@@ -208,20 +274,15 @@ async function procesar() {
         if (consolidado.length === 0) throw new Error("No hay datos válidos.");
 
         consolidado.sort((a, b) => a.sortDate - b.sortDate);
-        
-        // Preparar datos finales quitando la fecha de ordenamiento
         const datosLimpios = consolidado.map(({sortDate, ...r}) => r);
-        
         const ws = XLSX.utils.json_to_sheet(datosLimpios);
         
-        // Aplicar formato numérico con 2 decimales a la columna "Monto Real" (Columna J -> índice 9)
-        // Esto permite que Excel use la coma según tu configuración regional
         const range = XLSX.utils.decode_range(ws['!ref']);
         for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-            const cellAddress = XLSX.utils.encode_cell({r: R, c: 10}); // Columna K (Monto Real)
+            const cellAddress = XLSX.utils.encode_cell({r: R, c: 10});
             if (ws[cellAddress]) {
-                ws[cellAddress].t = 'n'; // Tipo número
-                ws[cellAddress].z = '#,##0.00'; // Formato contable/numérico
+                ws[cellAddress].t = 'n';
+                ws[cellAddress].z = '#,##0.00';
             }
         }
 
