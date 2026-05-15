@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>P2P Suite - Integrador y Analizador</title>
-    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <!-- <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root {
             --primary: #1a73e8;
@@ -283,48 +284,119 @@ async function procesarConsolidacion() {
             const wb = XLSX.read(data, { cellDates: true });
             const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { range: 9, defval: "" });
             rows.forEach(row => {
-                const dt = formatear(parsearFecha(buscarCol(row, ['Created', 'Time'], 13)));
-                if (!dt) return;
+                const dt = formatear(parsearFecha(buscarCol(row, ['Created', 'Time', 'Created Time', 'Hora de creación'], 13)));                if (!dt) return;
                 const mUSDT = parseFloat(buscarCol(row, ['Quantity'], 6)) || 0;
                 const mFee = (parseFloat(buscarCol(row, ['Maker Fee'], 8)) || 0) + (parseFloat(buscarCol(row, ['Taker Fee'], 9)) || 0);
                 consolidado.push({
                     'Fecha': dt.f, 'Hora': dt.h, 'Plataforma': 'binance',
-                    'Nro de Orden': String(buscarCol(row, ['Order Number'], 0)),
-                    'Tipo': String(buscarCol(row, ['Order Type'], 1)).toLowerCase().includes('sell') ? 'Venta' : 'Compra',
-                    'Estado': buscarCol(row, ['Status'], 10),
-                    'Monto bs': parseFloat(buscarCol(row, ['Total Price'], 4)) || 0,
+                    'Nro de Orden': String(buscarCol(row, ['Order Number', 'Número de Pedido'], 0)),
+                    'Tipo': String(buscarCol(row, ['Order Type', 'Tipo de orden'], 1)).toLowerCase().includes('sell') || 
+                            String(buscarCol(row, ['Order Type', 'Tipo de orden'], 1)).toLowerCase().includes('venta') ? 'Venta' : 'Compra',
+                    'Estado': buscarCol(row, ['Status', 'Estado'], 10),
+                    'Monto bs': parseFloat(buscarCol(row, ['Total Price', 'Precio Total'], 4)) || 0,
                     'TC': (() => {
                         const keys = Object.keys(row);
-                        const exactKey = keys.find(k => k.trim().toLowerCase() === 'price');
+                        const exactKey = keys.find(k => {
+                            const norm = k.trim().toLowerCase();
+                            return norm === 'price' || norm === 'precio';
+                        });
                         return exactKey ? parseFloat(row[exactKey]) || 0 : 0;
                     })(),
-                    'Monto USDT': mUSDT, 'fee': mFee, 'Monto Real': Number((mUSDT - mFee).toFixed(2)),
-                    'Usuario': String(buscarCol(row, ['Counterparty'], 10)), 'sortDate': dt.raw
+                    'Monto USDT': parseFloat(buscarCol(row, ['Quantity', 'Cantidad'], 6)) || 0,
+                    'fee': (parseFloat(buscarCol(row, ['Maker Fee', 'Tarifa de creador'], 8)) || 0) + 
+                        (parseFloat(buscarCol(row, ['Taker Fee', 'Comisión de tomador'], 9)) || 0),
+                    'Monto Real': Number((
+                        (parseFloat(buscarCol(row, ['Quantity', 'Cantidad'], 6)) || 0) -
+                        ((parseFloat(buscarCol(row, ['Maker Fee', 'Tarifa de creador'], 8)) || 0) + 
+                        (parseFloat(buscarCol(row, ['Taker Fee', 'Comisión de tomador'], 9)) || 0))
+                    ).toFixed(2)),
+                    'Usuario': String(buscarCol(row, ['Counterparty', 'Contraparte'], 10)),
+                    'sortDate': dt.raw
                 });
             });
         }
+        // if (fMexc) {
+        //     const data = await fMexc.arrayBuffer();
+        //     const wb = XLSX.read(data, { cellDates: true });
+        //     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+        //     rows.forEach(row => {
+        //         const dt = formatear(parsearFecha(
+        //             buscarCol(row, ['Start Time', 'Inicio', 'Create time', 'time'], 4)
+        //         ));
+        //         if (!dt) return;
+
+        //         const cant = parseFloat(buscarCol(row, ['Order Quantity', 'Cantidad de la orden', 'quantity'], 9)) || 0;
+
+        //         const tipoRaw = String(buscarCol(row, ['Trading Direction', 'Dirección de la operación', 'AD type'], 7)).toLowerCase().trim();
+        //         const tipo = (tipoRaw.includes('sell') || tipoRaw.includes('venta')) ? 'Venta' : 'Compra';
+
+        //         const estadoRaw = String(buscarCol(row, ['Status', 'Estado', 'state'], 8)).toLowerCase().trim();
+        //         let estado = estadoRaw;
+        //         if (estadoRaw === 'time out') estado = 'Cancelled';
+        //         else if (estadoRaw === 'done' || estadoRaw === 'complete' || estadoRaw === 'completed') estado = 'Completed';
+
+        //         consolidado.push({
+        //             'Fecha': dt.f, 'Hora': dt.h, 'Plataforma': 'mexc',
+        //             'Nro de Orden': String(buscarCol(row, ['UID', 'order ID'], 0)),
+        //             'Tipo': tipo,
+        //             'Estado': estado,
+        //             'Monto bs': parseFloat(buscarCol(row, ['Order Amount', 'Monto de la orden', 'amount'], 13)) || 0,
+        //             'TC': parseFloat(buscarCol(row, ['Price', 'Precio'], 10)) || 0,
+        //             'Monto USDT': cant,
+        //             'fee': parseFloat(buscarCol(row, ['Fee', 'Tarifa'], 11)) || 0,
+        //             'Monto Real': Number(cant.toFixed(2)),
+        //             'Usuario': String(buscarCol(row, ['Opponent UID', 'UID del oponente', 'taker id'], 3)),
+        //             'sortDate': dt.raw
+        //         });
+        //     });
+        // }
         if (fMexc) {
             const data = await fMexc.arrayBuffer();
-            const wb = XLSX.read(data, { cellDates: true });
-            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-            rows.forEach(row => {
-                const dt = formatear(parsearFecha(buscarCol(row, ['Create time', 'time'], 5)));
+            let wb;
+            try {
+                wb = XLSX.read(new Uint8Array(data), { 
+                    type: 'array', cellDates: true, dense: true, sheetStubs: true, WTF: false
+                });
+            } catch(e) {
+                try {
+                    wb = XLSX.read(new Uint8Array(data), { type: 'array', cellDates: false, raw: true });
+                } catch(e2) {
+                    status.innerText = "❌ Error MEXC: " + e2.message;
+                    return;
+                }
+            }
+
+            const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+            const startRow = (rows.length > 0 && isNaN(parseFloat(rows[0][0]))) ? 1 : 0;
+
+            rows.slice(startRow).forEach((row) => {
+                if (!row || row.length < 10) return;
+
+                const dt = formatear(parsearFecha(row[4])); // Start Time
                 if (!dt) return;
-                const cant = parseFloat(buscarCol(row, ['quantity'], 10)) || 0;
+
+                const cant = parseFloat(row[9]) || 0; // Order Quantity
+
+                const tipoRaw = String(row[7] || '').toLowerCase().trim(); // Trading Direction
+                const tipo = (tipoRaw.includes('sell') || tipoRaw.includes('venta')) ? 'Venta' : 'Compra';
+
+                const estadoRaw = String(row[8] || '').toLowerCase().trim(); // Status
+                let estado = estadoRaw;
+                if (estadoRaw === 'time out') estado = 'Cancelled';
+                else if (['done', 'complete', 'completed', 'completada'].includes(estadoRaw)) estado = 'Completed';
+
                 consolidado.push({
                     'Fecha': dt.f, 'Hora': dt.h, 'Plataforma': 'mexc',
-                    'Nro de Orden': String(buscarCol(row, ['order ID'], 2)),
-                    'Tipo': String(buscarCol(row, ['AD type'], 4)).toLowerCase().includes('sell') ? 'Venta' : 'Compra',
-                    'Estado': (() => {
-                        const s = String(buscarCol(row, ['state'], 9)).toLowerCase().trim();
-                        if (s === 'time out') return 'Cancelled';
-                        if (s === 'done') return 'Completed';
-                        return String(buscarCol(row, ['state'], 9));
-                    })(),
-                    'Monto bs': parseFloat(buscarCol(row, ['amount'], 12)) || 0,
-                    'TC': parseFloat(buscarCol(row, ['price'], 11)) || 0,
-                    'Monto USDT': cant, 'fee': 0, 'Monto Real': Number(cant.toFixed(2)),
-                    'Usuario': String(buscarCol(row, ['taker id'], 14)), 'sortDate': dt.raw
+                    'Nro de Orden': String(row[0] || ''),       // UID
+                    'Tipo': tipo,
+                    'Estado': estado,
+                    'Monto bs': parseFloat(row[13]) || 0,       // Order Amount
+                    'TC': parseFloat(row[10]) || 0,             // Price
+                    'Monto USDT': cant,
+                    'fee': parseFloat(row[11]) || 0,            // Fee
+                    'Monto Real': Number((cant - (parseFloat(row[11]) || 0)).toFixed(2)),
+                    'Usuario': String(row[3] || ''),            // Opponent UID
+                    'sortDate': dt.raw
                 });
             });
         }
